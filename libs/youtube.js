@@ -253,8 +253,9 @@ _.extend (module.exports.prototype, {
 			}
 
 			if (results.nextPageToken) {
+				params.pageToken = results.nextPageToken;
+				
 				promises.push (
-					params.pageToken = results.nextPageToken;
 					fetchMore (endpoint, params)
 				);
 			}

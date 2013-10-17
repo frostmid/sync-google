@@ -183,7 +183,6 @@ function googleplus (slave, task, preEmit) {
 	})
 
 	.use ('urn:fos:sync:feature/9ad4c1e02c0511e390a6ad90b2a1a278', function explain (task) {
-		// getComment
 		
 		if (task.url.match (/plus\.google\.com\/(\d+)/)) {	// getProfile
 			return googleplus (this, task).getProfile (task.url);
@@ -206,11 +205,3 @@ function googleplus (slave, task, preEmit) {
 	})
 
 	.connect (SocketIO, url);
-
-
-/*
-urn:fos:sync:entry-type/4db0ea402c0711e390a6ad90b2a1a278 видеозапись
-urn:fos:sync:entry-type/69a597a02c0711e390a6ad90b2a1a278 канал
-urn:fos:sync:entry-type/b0a3e0d02c0711e390a6ad90b2a1a278 комментарий
-
-*/
