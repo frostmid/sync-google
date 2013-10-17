@@ -1,0 +1,22 @@
+{
+	"name": "sync-youtube",
+	"description": "sync slave for youtube api",
+	"homepage": "http://futurios.org",
+	"author": {
+		"name": "Sergey Antoninko",
+		"email": "lyxsus@gmail.com"
+	},
+	"version": "0.1.0",
+	"main": "index.js",
+	"dependencies": {
+		"lodash": "0.10.x",
+		"q": "0.8.x",
+		"vow": "*",
+		"moment": "*",
+		"socket.io-client": "*",
+		"fun-rate-limit": "*",
+		"fos-sync-slave": "git://github.com/lyxsus/fos-sync-slave.git",
+		"fos-request": "git://github.com/lyxsus/fos-request.git"
+	},
+	"private": true
+}
