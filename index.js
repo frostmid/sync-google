@@ -11,6 +11,17 @@ var	_ = require ('lodash'),
 //TODO: разделение youtube, google+ и пр.
 
 var parse = {
+	'plus#person': function (entry) {
+		return {
+			'url': entry.url ? entry.url : 'https://plus.google.com/' + entry.id,
+			'entry-type': 'urn:fos:sync:entry-type/6bbd8c902fb411e3bf276be78cff8242',
+			'first-name': entry.name.givenName,
+			'family-name': entry.name.familyName, 
+			'avatar': entry.image ? entry.image.url : null,
+			'gender': entry.gender ? 'urn:gender/' + entry.gender : null
+		};
+	},
+
 	'youtube#channel': function (entry) {
 		return {
 			'url': 'https://www.youtube.com/channel/' + entry.id,
@@ -19,6 +30,7 @@ var parse = {
 			'first-name': entry.snippet.title,
 			'created_at': (new Date (entry.snippet.publishedAt)).getTime () / 1000,
 			'avatar': entry.snippet.thumbnails.default.url,
+			'content': entry.snippet.description || null,
 			'alias': _.compact ([
 				entry.contentDetails.googlePlusUserId ? 'https://plus.google.com/' + entry.contentDetails.googlePlusUserId : null
 			]),
@@ -35,16 +47,6 @@ var parse = {
 			'entry-type': 'urn:fos:sync:entry-type/8885476036c511e3b620d1a9472cd3f6',
 
 		}
-	},
-
-	'plus#person': function (entry) {
-		return {
-			'url': 'https://plus.google.com/' + entry.contentDetails.googlePlusUserId,
-			'entry-type': 'urn:fos:sync:entry-type/6bbd8c902fb411e3bf276be78cff8242',
-			'first-name': entry.snippet.title,
-			'created_at': (new Date (entry.snippet.publishedAt)).getTime () / 1000,
-			'avatar': entry.snippet.thumbnails.default.url
-		};
 	},
 
 	'youtube#post': function (entry) {
@@ -122,22 +124,40 @@ function googleplus (slave, task, preEmit) {
 
 		var preEmit = function (entry) {
 			entry.tokens = [token._id];
+
 			return entry;
 		};
 
-		return youtube (this, task, preEmit).getChannel ();
-	})
-
-	.use ('urn:fos:sync:feature/dfe416e02c0611e390a6ad90b2a1a278', function getChannel (task) {
-		return youtube (this, task).getChannel (task.url);
-	})
-
-	.use ('urn:fos:sync:feature/b300d9102c0611e390a6ad90b2a1a278', function getVideo (task) {
-		return youtube (this, task).getVideo (task.url);
+		return googleplus (this, task, preEmit).getProfile ();
 	})
 
 	.use ('urn:fos:sync:feature/097c96802c0711e390a6ad90b2a1a278', function getProfile (task) {
 		return googleplus (this, task).getProfile (task.url);
+	})
+
+	.use ('urn:fos:sync:feature/dfe416e02c0611e390a6ad90b2a1a278', function getUploadedVideos (task) {
+		return youtube (this, task).getUploadedVideos (task.url);
+	})
+
+	.use ('urn:fos:sync:feature/1f7b48b036c411e3b620d1a9472cd3f6', function getLikedVideos (task) {
+		return youtube (this, task).getLikedVideos (task.url);
+	})
+
+	.use ('urn:fos:sync:feature/583fe84036c411e3b620d1a9472cd3f6', function getPlaylistedVideos (task) {
+		return youtube (this, task).getPlaylistedVideos (task.url);
+	})
+
+	.use ('urn:fos:sync:feature/0578fe0036db11e3b620d1a9472cd3f6', function getPlaylistVideos (task) {
+		return youtube (this, task).getPlaylistVideos (task.url);
+	})
+
+
+	.use ('urn:fos:sync:feature/2a8baec036d811e3b620d1a9472cd3f6', function searchVideos (task) {
+		return youtube (this, task).searchVideos (task.url);
+	})
+
+	.use ('urn:fos:sync:feature/b300d9102c0611e390a6ad90b2a1a278', function getVideo (task) {
+		return youtube (this, task).getVideo (task.url);
 	})
 
 	.use ('urn:fos:sync:feature/11b6b7a02c0611e390a6ad90b2a1a278', function reply (task) {
@@ -145,7 +165,10 @@ function googleplus (slave, task, preEmit) {
 	})
 
 	.use ('urn:fos:sync:feature/9ad4c1e02c0511e390a6ad90b2a1a278', function explain (task) {
-		
+		// getComment
+		// getChannel
+		// getProfile
+		// getPlaylist
 		return null;
 	})
 

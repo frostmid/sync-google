@@ -24,7 +24,17 @@ _.extend (module.exports.prototype, {
 			throw new Error ('None url for request');
 		}
 
-		return request (url);
+		return request (url)
+			.then (function (response) {
+				if (response.error) {
+					var error_code = response.error.code,
+						error_message = response.error.message;
+						
+					throw new Error ('Request return error ' + error_code + ': ' + error_message + ' for url ' + url);
+				}
+
+				return response;
+			});
 	},
 
 	get: function (endpoint, params) {
@@ -39,7 +49,7 @@ _.extend (module.exports.prototype, {
 
 	getProfile: function (url) {
 		var self = this,
-			tmp = url.match(/\/((?:\d+){10})/),
+			tmp = url ? url.match(/\/((?:\d+){10})/) : null,
 			userId = tmp ? tmp [1] : 'me',
 			params = {};
 

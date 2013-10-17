@@ -24,7 +24,17 @@ _.extend (module.exports.prototype, {
 			throw new Error ('None url for request');
 		}
 
-		return request (url);
+		return request (url)
+			.then (function (response) {
+				if (response.error) {
+					var error_code = response.error.code,
+						error_message = response.error.message;
+						
+					throw new Error ('Request return error ' + error_code + ': ' + error_message + ' for url ' + url);
+				}
+
+				return response;
+			});
 	},
 
 	get: function (endpoint, params) {
@@ -107,6 +117,9 @@ _.extend (module.exports.prototype, {
 
 
 
+
+
+
 	reply: function (url, message, issue) {
 		var self = this,
 			tmp = url.match(/\/users\/([A-Za-z_0-9-]+)\/(\d+).html(\?thread=(\d+))?/),
@@ -143,165 +156,7 @@ _.extend (module.exports.prototype, {
 			}, this));
 	},
 
-	getProfile: function (url) {
-		var self = this,
-			tmp = url.match(/\/users\/([A-Za-z_0-9-]+)\/profile$/);
-
-		return request ({url: 'http://' + tmp [1] + '.livejournal.com/profile'})
-			.then (function (body) {
-				var $ = cheerio.load (body),
-					$user_info = $ ('dl.b-profile-userinfo').first();
-
-				return {
-					'username': tmp [1],
-					'fullname':$user_info.find('dt:contains("Имя:") +').text() || $ ('h1.b-details-journal-title').text(),
-					'avatar': $ ('.b-profile-userpic img').attr('src'),
-					'nickname': $ ('.b-details-journal-ljuser .i-ljuser-username').text(),
-					'city':$user_info.find('.locality').text() || null,
-					'site':$user_info.find('dt:contains("Сайт:") +').find('a').attr('href') || null,
-					'alias': _.compact ([
-						$user_info.find('.b-contacts-mail').text() || null,
-						$user_info.find('.b-contacts-facebook').text() || null,
-						$user_info.find('.b-contacts-twitter').text() || null,
-						$user_info.find('.b-contacts-vk').text() || null,
-						$user_info.find('.b-contacts-ljtalk').text() || null,
-						$user_info.find('.b-contacts-icq').text() || null,
-						$user_info.find('.b-contacts-google').text() || null,
-						$user_info.find('.b-contacts-skype').text() || null
-					]);
-
-					//'birth-date':$user_info.find('dt:contains("Дата рождения:") +').text() ||, //TODO: date parse
-				};
-			})
-			.then (function (entry) {
-				return Promises.when (self.entry (entry, 'profile'));
-			});
-	},
-
-	getComment: function (url) {
-		var self = this,
-			tmp = url.match(/\/users\/([A-Za-z_0-9-]+)\/(\d+).html\?thread=(\d+)/);
-
-		var params = {
-			'journal': tmp [1],
-			'ditemid': tmp [2],
-			'dtalkid': tmp [3],
-			'selecttype': 'one',
-			'expand_strategy': 'mobile_thread',
-			'page_size': 100
-		};
-
-		return this.get ('getcomments', params)
-			.then(function (result) {
-				if (result.message) {
-					throw new Error (result.message);
-				}
-
-				if (!result.comments.length) {
-					throw new Error ('Non exist comment ' + url);
-				}
-
-				var entry = result.comments [0];
-				entry.children = null;
-				entry.url = url;
-
-				entry.ancestor = self.settings.base + '/users/' + tmp [1] + '/' + tmp [2] + '.html' +
-					(entry.parentdtalkid ? '?thread=' + entry.parentdtalkid : '');
-
-				return Promises.when (self.entry (entry, 'comment'));
-			});			
-	},
-
-	getComments: function (parent) {
-		var self = this,
-			parentURL = this.normalizeURL (parent.url),
-			tmp = parentURL.match(/\/users\/([A-Za-z_0-9-]+)\/(\d+).html$/),
-			params = {
-				'journal': tmp [1],
-				'ditemid': tmp [2],
-				'selecttype': null,
-				'expand_strategy': 'mobile_thread',
-				'page_size': 100
-			};
-
-		var flattenComment = function (entry, result) {
-			if (!result) result = [];
-
-			if (entry.children && entry.children.length) {
-				entry.reply_count = entry.children.length;
-
-				_.forEach (entry.children, _.bind(function (child) {
-					child.ancestor = parentURL + '?thread=' + entry.dtalkid;
-					result = flattenComment (child, result);
-				}, this));
-			}
-
-			if (!entry.ancestor) 
-				entry.ancestor = parentURL;
-
-			entry.url = parentURL + '?thread=' + entry.dtalkid;
-			entry.children = null;
-			result.push (entry);
-
-			return result;
-		};
-
-		return this.list ('getcomments', params, function (entry) {
-			_.forEach (flattenComment (entry), function (item) {
-				self.entry (item, 'comment');
-			});
-		});
-	},
-
-	getPost: function (url) {
-		var tmp = url.match(/\/users\/([A-Za-z_0-9-]+)\/(\d+).html$/),
-			params = {
-				'journal': tmp [1],
-				'ditemid': tmp [2],
-				'selecttype': 'one'
-			};
-
-		return this.get ('getevents', params)
-			.then(_.bind(function (result) {
-				if (result.message) {
-					throw new Error (result.message);
-				}
-
-				if (!result.events.length) {
-					throw new Error ('Non exist post ' + url);
-				}
-
-				var entry = result.events [0];
-				entry.postername = params.journal;
-
-				return Promises.all ([
-					this.entry (entry, 'post'),
-					this.getComments (entry, 'comment')
-				]);
-
-			}, this));
-	},
-
-	getBlogPosts: function (url) {
-		var tmp = url.match(/\/users\/([A-Za-z_0-9-]+)$/),
-			params = {
-				'journal': tmp [1],
-				'lastsync': moment (this.settings.scrapeStart).format("YYYY-MM-DD HH:mm:ss"),
-				'selecttype': 'lastn',
-				'howmany': 50
-			};
-
-		return this.list ('getevents', params, _.bind(function (entry) {
-
-			entry.postername = params.journal;
-
-			return Promises.all ([
-				this.entry (entry, 'post'),
-				this.getComments (entry, 'comment')
-			]);
-		}, this));
-	},
-
+	
 	list: function (method, params, iterator) {
 		var self = this;
 
