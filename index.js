@@ -8,8 +8,8 @@ var	_ = require ('lodash'),
 	GooglePlus = require ('./libs/googleplus'),
 	url = process.argv [2] || 'http://127.0.0.1:8001';
 
-//TODO: разделение youtube, google+ и пр.
 
+//TODO: разделение youtube, plus и пр.
 var parse = {
 	'plus#person': function (entry) {
 		return {
@@ -26,8 +26,9 @@ var parse = {
 		return {
 			'url': 'https://www.youtube.com/channel/' + entry.id,
 			'entry-type': 'urn:fos:sync:entry-type/69a597a02c0711e390a6ad90b2a1a278',
-			'username': entry.snippet.title,
-			'first-name': entry.snippet.title,
+			'title': entry.snippet.title,
+			//'username': entry.snippet.title,
+			//'first-name': entry.snippet.title,
 			'created_at': (new Date (entry.snippet.publishedAt)).getTime () / 1000,
 			'avatar': entry.snippet.thumbnails.default.url,
 			'content': entry.snippet.description || null,
@@ -37,8 +38,7 @@ var parse = {
 			'metrics': {
 				'comments': entry.statistics.commentCount,
 				'likes':  entry.statistics.subscriberCount
-			},
-			'show-url': 'https://www.youtube.com/channel/' + entry.snippet.title
+			}
 		};
 	},
 
@@ -49,26 +49,40 @@ var parse = {
 		}
 	},
 
-	'youtube#post': function (entry) {
+	'youtube#playlistItem': function (entry) {
+		var url = 'https://www.youtube.com/watch?v=' + entry.snippet.resourceId.videoId;
+
 		return {
-			'url': normalizeURL (entry.url),
-			'entry-type': 'urn:fos:sync:entry-type/62c4870f3c8a6aee0dd7e88e9e532848',
-			'ancestor': entry.ancestor || null,
-			'author': 'http://www.livejournal.com/users/' + entry.postername + '/profile',
-			'title': entry.subject || null,
-			'content': entry.event || null,
-			'created_at': entry.event_timestamp,
-			'metrics': {
-				'comments': entry.reply_count || 0
-			},
-			'show-url': normalizeURL (entry.url, true)
+			'url': url,
+			'entry-type': 'urn:fos:sync:entry-type/4db0ea402c0711e390a6ad90b2a1a278',
+			'ancestor': 'https://www.youtube.com/channel/' + entry.snippet.channelId,
+			'author': 'https://plus.google.com/' + entry.author,
+			'title': entry.snippet.title || null,
+			'content': entry.snippet.description || null,
+			'created_at': (new Date (entry.snippet.publishedAt)).getTime () / 1000,
+			'show-url': url + '&list=' + entry.snippet.playlistId
 		};
 	},
+
+	'youtube#video': function (entry) {
+		return {
+			'url': 'https://www.youtube.com/watch?v=' + entry.id,
+			'entry-type': 'urn:fos:sync:entry-type/4db0ea402c0711e390a6ad90b2a1a278',
+			'ancestor': 'https://www.youtube.com/channel/' + entry.snippet.channelId,
+			'author': 'https://plus.google.com/' + entry.author,
+			'title': entry.snippet.title || null,
+			'content': entry.snippet.description || null,
+			'created_at': (new Date (entry.snippet.publishedAt)).getTime () / 1000
+		};
+	},
+
+
+
 
 	'youtube#comment': function (entry) {
 		return {
 			'url': normalizeURL (entry.url),
-			'entry-type': 'urn:fos:sync:entry-type/62c4870f3c8a6aee0dd7e88e9e54463b',
+			'entry-type': 'urn:fos:sync:entry-type/b0a3e0d02c0711e390a6ad90b2a1a278',
 			'ancestor': entry.ancestor || null,
 			'author': 'http://www.livejournal.com/users/' + entry.postername + '/profile',
 			'title': entry.subject || null,
@@ -119,22 +133,13 @@ function googleplus (slave, task, preEmit) {
 	version: '0.0.1'
 }))
 
-	.use ('urn:fos:sync:feature/eeb318202c0511e390a6ad90b2a1a278', function resolveToken (task) {
-		var token = task._prefetch.token;
-
-		var preEmit = function (entry) {
-			entry.tokens = [token._id];
-
-			return entry;
-		};
-
-		return googleplus (this, task, preEmit).getProfile ();
-	})
-
+	//Google+
 	.use ('urn:fos:sync:feature/097c96802c0711e390a6ad90b2a1a278', function getProfile (task) {
 		return googleplus (this, task).getProfile (task.url);
 	})
 
+
+	//YouTube
 	.use ('urn:fos:sync:feature/dfe416e02c0611e390a6ad90b2a1a278', function getUploadedVideos (task) {
 		return youtube (this, task).getUploadedVideos (task.url);
 	})
@@ -151,7 +156,6 @@ function googleplus (slave, task, preEmit) {
 		return youtube (this, task).getPlaylistVideos (task.url);
 	})
 
-
 	.use ('urn:fos:sync:feature/2a8baec036d811e3b620d1a9472cd3f6', function searchVideos (task) {
 		return youtube (this, task).searchVideos (task.url);
 	})
@@ -164,12 +168,30 @@ function googleplus (slave, task, preEmit) {
 		return youtube (this, task).reply (task.url, task.content, task.issue);
 	})
 
+
+	//Common
+	.use ('urn:fos:sync:feature/eeb318202c0511e390a6ad90b2a1a278', function resolveToken (task) {
+		var token = task._prefetch.token;
+
+		var preEmit = function (entry) {
+			entry.tokens = [token._id];
+
+			return entry;
+		};
+
+		return googleplus (this, task, preEmit).getProfile ();
+	})
+
 	.use ('urn:fos:sync:feature/9ad4c1e02c0511e390a6ad90b2a1a278', function explain (task) {
 		// getComment
-		// getChannel
-		// getProfile
-		// getPlaylist
-		return null;
+		
+		if (task.url.match (/plus\.google\.com\/(\d+)/)) {	// getProfile
+			return googleplus (this, task).getProfile (task.url);
+		} else if (task.url.match (/www\.youtube\.com\/(channel|user)\/(.+)/)) {	//getChannel
+			return youtube (this, task).getChannel (task.url);
+		} else {
+			throw new Error ('Explain not implement for ' + task.url);
+		}
 	})
 
 

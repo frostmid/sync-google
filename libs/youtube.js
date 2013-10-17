@@ -19,9 +19,13 @@ _.extend (module.exports.prototype, {
 		scrapeStart: null
 	},
 
-	request: function (url) {
+	request: function (url, params) {
 		if (!url) {
 			throw new Error ('None url for request');
+		}
+
+		if (params) {
+			url += ((url.indexOf ('?') === -1) ? '?' : '&') + querystring.stringify(params);
 		}
 
 		return request (url)
@@ -42,46 +46,154 @@ _.extend (module.exports.prototype, {
 			params = params ? params : {};
 
 		params.access_token = this.settings.accessToken;
-		url += ((url.indexOf ('?') === -1) ? '?' : '&') + querystring.stringify(params);
 
-		return this.request (url);
+		return this.request (url, params);
 	},
 
-	getChannel: function (channelId) {
-		var self = this,
+	getChannel: function (url) {
+		var tmp = url.match(/\/(channel|user)\/(.+)/),
+			type = tmp ? tmp [1] : null,
+			objectId = tmp ? tmp [2] .replace(/\/(.+)/, '') : null,
 			params = {};
 
-		/*
-			id - for channelId
-			forUsername - for username
-			mine = true
+		params.part = 'snippet,contentDetails,statistics';
 
-			part = snippet,contentDetails
-
-			contentDetails.relatedPlaylists.likes		//playlist id
-			contentDetails.relatedPlaylists.uploads		//playlist id
-			contentDetails.googlePlusUserId
-
-
-		*/
-
-		if (!channelId) {
-			params.mine = true;
+		if (type == 'channel') {
+			params.id = objectId;
 		} else {
-			params.id = channelId;
+			params.forUsername = objectId;
 		}
 
-		return this.get ('/channels?part=id,snippet,statistics,contentDetails', params)
-			.then (function (entry) {
+		return this.get ('/channels', params)
+			.then(function (response) {
 				if (!entry.items || !entry.items.length) {
-					throw new Error ('No channels was found');
+					throw new Error ('Channel was not found');
 				}
 
-				return Promises.when(
-					self.entry (entry.items [0])
-				);
+				return response.items [0];
+			})
+			.then(this.entry);
+	},
+
+	_getChannelId: function (url) {
+		var promise = Promises.promise();
+			tmp = url.match(/\/(channel|user)\/(.+)/),
+			type = tmp ? tmp [1] : null,
+			objectId = tmp ? tmp [2] .replace(/\/(.+)/, '') : null;
+
+		if (type == 'channel') {
+			promise.fullfil (objectId);
+		} else {
+			this.get ('/channels', {forUsername: objectId, part: 'id'})
+				.then(function (response) {
+					if (!entry.items || !entry.items.length) {
+						throw new Error ('Channel was not found');
+					}
+
+					promise.fullfil (response.items [0].id);
+				});
+		}
+
+		return promise;
+	},
+
+	_getPlaylistVideos: function (playlistId, authorId) {
+		var self = this,
+			params = {
+				part: 'snippet',
+				playlistId: playlistId
+			};
+
+		return self.list ('/playlistItems', params, function (entry) {
+			entry.author = authorId;
+
+			return Promises.all ([
+				self.entry (entry),
+				self.getComments (entry)
+			]);
+		});
+	},
+
+	getUploadedVideos: function (url) {
+		var self = this;
+
+		return self.getChannel (url)
+			.then (function (channel) {
+				var playlistId = channel.contentDetails.relatedPlaylists.uploads,
+					authorId = channel.contentDetails.googlePlusUserId;
+
+				return self._getPlaylist (playlistId, authorId);
 			});
 	},
+
+	getLikedVideos: function (url) {
+		var self = this;
+
+		return self.getChannel (url)
+			.then (function (channel) {
+				var playlistId = channel.contentDetails.relatedPlaylists.likes,
+					authorId = channel.contentDetails.googlePlusUserId;
+
+				return self._getPlaylist (playlistId, authorId);
+			});
+	},
+
+	getPlaylistedVideos: function (url) {
+		var self = this;
+
+		return self.getChannel (url)
+			.then (function (channel) {
+				var params = {part: 'snippet', channelId: channel.id};
+
+				return self.list ('/playlists', params, function (playlist) {
+					var authorId = channel.contentDetails.googlePlusUserId;
+
+					return self._getPlaylist (playlist.id, authorId);
+				});
+			});
+	},
+
+	getPlaylistVideos: function (url) {
+		var self = this,
+			tmp = url.match (/(?:\?|\&)list=(.+)/),
+			playlistId = tmp ? tmp [1] .replace (/\&(.+)/, '') : null;
+
+		return self.getChannel (url)
+			.then (function (channel) {
+				var authorId = channel.contentDetails.googlePlusUserId;
+
+				return self._getPlaylist (playlistId, authorId);
+			});
+	},
+
+
+	getComments: function (entry) {
+		return null;
+	},
+
+	searchVideos: function (url) {
+		return null;
+	},
+
+	getVideo: function (url) {
+		var self = this,
+			tmp = url.match (/\?v=(.+)/),
+			objectId = tmp ? tmp [1] .replace (/\&(.+)/, '') : null;
+
+		return self.get ('/videos', {part: 'snippet', id: objectId})
+			.then (function (entry) {
+				return self.get ('/channels', {part: 'contentDetails', id: entry.snippet.channelId})
+					.then (function (channel) {
+						entry.author = channel.contentDetails.googlePlusUserId;
+
+						return Promises.all ([
+							self.entry (entry),
+							self.getComments (entry)
+						]);
+					});
+			});
+	},
+	
 
 	entry: function (entry, type) {
 		var type  = type ? type : (entry.kind ? entry.kind : null),
@@ -108,10 +220,51 @@ _.extend (module.exports.prototype, {
 			console.log ('Skipping of unknown type', type);
 		}
 	},
+	
+	list: function (endpoint, params, iterator) {
+		var self = this,
+			params = params ? params : {};
 
+		params.maxResults = 50;
+		params.access_token = this.settings.accessToken;
 
+		var fetchMore = _.bind (function (url, params) {
+			return this.request (url)
+				.then (process);
+		}, this);
 
+		var process = function (results) {
+			var promises = [];
 
+			if (results.error) {
+				throw results.error;
+			}
+
+			if (results.items) {
+				promises = _.map (
+					_.filter (results.items, function (entry) {
+						var created_time = (new Date (entry.snippet.publishedAt)).getTime (),
+							scrapeStart = self.settings.scrapeStart;
+
+						return (created_time && scrapeStart && (created_time >= scrapeStart));
+					}),
+					iterator
+				);
+			}
+
+			if (results.nextPageToken) {
+				promises.push (
+					params.pageToken = results.nextPageToken;
+					fetchMore (endpoint, params)
+				);
+			}
+
+			return Promises.all (promises);
+		};
+
+		return this.request (this.settings.base + endpoint)
+			.then (process);
+	},
 
 
 
@@ -154,69 +307,5 @@ _.extend (module.exports.prototype, {
 					throw new Error ('Message was not send');
 				}
 			}, this));
-	},
-
-	
-	list: function (method, params, iterator) {
-		var self = this;
-
-		var fetchMore = _.bind (function (method, params) {
-			return this.xmlRPCRequest (method, params)
-				.then (process);
-		}, this);
-
-		var process = function (results) {
-			var promises = [];
-
-			if (results.error) {
-				throw results.error;
-			}
-
-			if (method == 'getcomments') {
-				if (results.topitems) {
-					promises = _.map (
-						_.filter (results.comments, function (entry) {
-							var created_time = entry.datepostunix || null,
-								scrapeStart = self.settings.scrapeStart / 1000;
-
-							return (created_time && scrapeStart && (created_time >= scrapeStart));
-						}),
-						iterator
-					);
-				}
-
-				if (results.pages && (results.pages > results.page)) {
-					params.page = params.page ? params.page + 1 : 2;
-
-					promises.push (
-						fetchMore (method, params)
-					);
-				}
-			} else if (method == 'getevents') {
-				if (results.events && results.events.length) {
-					promises = _.map (
-						_.filter (results.events, function (entry) {
-							var created_time = entry.event_timestamp || null,
-								scrapeStart = self.settings.scrapeStart / 1000;
-
-							return (created_time && scrapeStart && (created_time >= scrapeStart));
-						}),
-						iterator
-					);
-
-
-					params.skip = params.skip ? params.skip + 50 : 50;
-
-					promises.push (
-						fetchMore (method, params)
-					);
-				}
-			}
-
-			return Promises.all (promises);
-		};
-
-		return this.get (method, params)
-			.then (process);
 	}
 });
