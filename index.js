@@ -12,14 +12,30 @@ var	_ = require ('lodash'),
 //TODO: разделение youtube, plus и пр.
 var parse = {
 	'plus#person': function (entry) {
-		return {
-			'url': entry.url ? entry.url : 'https://plus.google.com/' + entry.id,
-			'entry-type': 'urn:fos:sync:entry-type/6bbd8c902fb411e3bf276be78cff8242',
-			'first-name': entry.name.givenName,
-			'family-name': entry.name.familyName, 
-			'avatar': entry.image ? entry.image.url : null,
-			'gender': entry.gender ? 'urn:gender/' + entry.gender : null
-		};
+		switch (entry.objectType) {
+			case 'person':
+				return {
+					'url': 'https://plus.google.com/' + entry.id,
+					'entry-type': 'urn:fos:sync:entry-type/6bbd8c902fb411e3bf276be78cff8242',
+					'first-name': entry.name.givenName,
+					'family-name': entry.name.familyName, 
+					'avatar': entry.image ? entry.image.url : null,
+					'gender': entry.gender ? 'urn:gender/' + entry.gender : null,
+					'show-url': entry.url || null
+				};
+
+			case 'page':
+				return {
+					'url': 'https://plus.google.com/' + entry.id,
+					'entry-type': 'urn:fos:sync:entry-type/6bbd8c902fb411e3bf276be78cff8242', //TODO: change
+					'first-name': entry.displayName,
+					'avatar': entry.image ? entry.image.url : null,
+					'content': entry.aboutMe || null,
+					'show-url': entry.url || null
+				};
+
+			default: throw new Error ('Error implement for object type ' + entry.objectType);
+		}
 	},
 
 	'youtube#channel': function (entry) {
@@ -27,8 +43,8 @@ var parse = {
 			'url': 'https://www.youtube.com/channel/' + entry.id,
 			'entry-type': 'urn:fos:sync:entry-type/69a597a02c0711e390a6ad90b2a1a278',
 			'title': entry.snippet.title,
-			//'username': entry.snippet.title,
-			//'first-name': entry.snippet.title,
+			'username': entry.snippet.title,
+			'first-name': entry.snippet.title,
 			'created_at': (new Date (entry.snippet.publishedAt)).getTime () / 1000,
 			'avatar': entry.snippet.thumbnails.default.url,
 			'content': entry.snippet.description || null,
@@ -56,7 +72,7 @@ var parse = {
 			'url': url,
 			'entry-type': 'urn:fos:sync:entry-type/4db0ea402c0711e390a6ad90b2a1a278',
 			'ancestor': 'https://www.youtube.com/channel/' + entry.snippet.channelId,
-			'author': 'https://plus.google.com/' + entry.author,
+			'author': entry.author ? 'https://plus.google.com/' + entry.author : null,
 			'title': entry.snippet.title || null,
 			'content': entry.snippet.description || null,
 			'created_at': (new Date (entry.snippet.publishedAt)).getTime () / 1000,
@@ -69,7 +85,7 @@ var parse = {
 			'url': 'https://www.youtube.com/watch?v=' + entry.id,
 			'entry-type': 'urn:fos:sync:entry-type/4db0ea402c0711e390a6ad90b2a1a278',
 			'ancestor': 'https://www.youtube.com/channel/' + entry.snippet.channelId,
-			'author': 'https://plus.google.com/' + entry.author,
+			'author': entry.author ? 'https://plus.google.com/' + entry.author : null,
 			'title': entry.snippet.title || null,
 			'content': entry.snippet.description || null,
 			'created_at': (new Date (entry.snippet.publishedAt)).getTime () / 1000
