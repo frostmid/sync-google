@@ -232,10 +232,10 @@ _.extend (module.exports.prototype, {
 			params = params ? params : {};
 
 		params.maxResults = 50;
-		params.access_token = this.settings.accessToken;
+		params.access_token = self.settings.accessToken;
 
 		var fetchMore = _.bind (function (url, params) {
-			return this.request (url)
+			return this.request (url, params)
 				.then (process);
 		}, this);
 
@@ -262,14 +262,14 @@ _.extend (module.exports.prototype, {
 				params.pageToken = results.nextPageToken;
 
 				promises.push (
-					fetchMore (endpoint, params)
+					fetchMore (self.settings.base + endpoint, params)
 				);
 			}
 
 			return Promises.all (promises);
 		};
 
-		return this.request (this.settings.base + endpoint)
+		return self.request (self.settings.base + endpoint, params)
 			.then (process);
 	},
 
