@@ -12,7 +12,7 @@ module.exports = function YouTube (settings) {
 
 _.extend (module.exports.prototype, {
 	settings: {
-		base: 'https://www.googleapis.com/',
+		base: 'https://www.googleapis.com/youtube/v3',
 		locale: 'ru_RU',
 		accessToken: null,
 		emit: null,
@@ -61,7 +61,7 @@ _.extend (module.exports.prototype, {
 			params.id = channelId;
 		}
 
-		return this.get ('/youtube/v3/channels?part=id,snippet,statistics,contentDetails', params)
+		return this.get ('/channels?part=id,snippet,statistics,contentDetails', params)
 			.then (function (entry) {
 				if (!entry.items || !entry.items.length) {
 					throw new Error ('No channels was found');

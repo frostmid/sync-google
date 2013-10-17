@@ -5,6 +5,7 @@ var	_ = require ('lodash'),
 	SocketIO = require ('socket.io-client'),
 	Slave = require ('fos-sync-slave'),
 	YouTube = require ('./libs/youtube'),
+	GooglePlus = require ('./libs/googleplus'),
 	url = process.argv [2] || 'http://127.0.0.1:8001';
 
 //TODO: разделение youtube, google+ и пр.
@@ -36,7 +37,7 @@ var parse = {
 		}
 	},
 
-	'youtube#user': function (entry) {
+	'plus#person': function (entry) {
 		return {
 			'url': 'https://plus.google.com/' + entry.contentDetails.googlePlusUserId,
 			'entry-type': 'urn:fos:sync:entry-type/6bbd8c902fb411e3bf276be78cff8242',
@@ -96,8 +97,23 @@ function youtube (slave, task, preEmit) {
 	})
 };
 
+function googleplus (slave, task, preEmit) {
+	return new GooglePlus ({
+		accessToken: task._prefetch.token.access_token,
+		emit: function (entry) {
+			if (preEmit) {
+				entry = preEmit (entry);
+			}
+
+			return slave.emitter (task).call (this, entry);
+		},
+		scrapeStart: task['scrape-start'],
+		parse: parse
+	})
+};
+
 (new Slave ({
-	title: 'youtube api',
+	title: 'google api',
 	version: '0.0.1'
 }))
 
@@ -121,7 +137,7 @@ function youtube (slave, task, preEmit) {
 	})
 
 	.use ('urn:fos:sync:feature/097c96802c0711e390a6ad90b2a1a278', function getProfile (task) {
-		return null;
+		return googleplus (this, task).getProfile (task.url);
 	})
 
 	.use ('urn:fos:sync:feature/11b6b7a02c0611e390a6ad90b2a1a278', function reply (task) {
