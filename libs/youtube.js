@@ -128,7 +128,7 @@ _.extend (module.exports.prototype, {
 				var playlistId = channel.contentDetails.relatedPlaylists.uploads,
 					authorId = channel.contentDetails.googlePlusUserId;
 
-				return self._getPlaylist (playlistId, authorId);
+				return self._getPlaylistVideos (playlistId, authorId);
 			});
 	},
 
@@ -140,7 +140,7 @@ _.extend (module.exports.prototype, {
 				var playlistId = channel.contentDetails.relatedPlaylists.likes,
 					authorId = channel.contentDetails.googlePlusUserId;
 
-				return self._getPlaylist (playlistId, authorId);
+				return self._getPlaylistVideos (playlistId, authorId);
 			});
 	},
 
@@ -154,7 +154,7 @@ _.extend (module.exports.prototype, {
 				return self.list ('/playlists', params, function (playlist) {
 					var authorId = channel.contentDetails.googlePlusUserId;
 
-					return self._getPlaylist (playlist.id, authorId);
+					return self._getPlaylistVideos (playlist.id, authorId);
 				});
 			});
 	},
@@ -168,7 +168,7 @@ _.extend (module.exports.prototype, {
 			.then (function (channel) {
 				var authorId = channel.contentDetails.googlePlusUserId;
 
-				return self._getPlaylist (playlistId, authorId);
+				return self._getPlaylistVideos (playlistId, authorId);
 			});
 	},
 
