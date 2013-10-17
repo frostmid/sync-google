@@ -187,7 +187,7 @@ function googleplus (slave, task, preEmit) {
 		if (task.url.match (/plus\.google\.com\/(\d+)/)) {	// getProfile
 			return googleplus (this, task).getProfile (task.url);
 		} else if (task.url.match (/www\.youtube\.com\/(channel|user)\/(.+)/)) {	//getChannel
-			return youtube (this, task).getChannel (task.url);
+			return youtube (this, task).getChannel (task.url, true);
 		} else {
 			throw new Error ('Explain not implement for ' + task.url);
 		}

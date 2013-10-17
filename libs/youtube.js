@@ -50,8 +50,9 @@ _.extend (module.exports.prototype, {
 		return this.request (url, params);
 	},
 
-	getChannel: function (url) {
-		var tmp = url.match(/\/(channel|user)\/(.+)/),
+	getChannel: function (url, sendToEmit) {
+		var self = this,
+			tmp = url.match(/\/(channel|user)\/(.+)/),
 			type = tmp ? tmp [1] : null,
 			objectId = tmp ? tmp [2] .replace(/\/(.+)/, '') : null,
 			params = {};
@@ -64,15 +65,20 @@ _.extend (module.exports.prototype, {
 			params.forUsername = objectId;
 		}
 
-		return this.get ('/channels', params)
+		return self.get ('/channels', params)
 			.then(function (response) {
-				if (!entry.items || !entry.items.length) {
+				if (!response.items || !response.items.length) {
 					throw new Error ('Channel was not found');
 				}
 
-				return response.items [0];
+				var entry = response.items [0];
+
+				if (sendToEmit) {
+					return self.entry (entry);
+				}
+
+				return entry;
 			})
-			.then(this.entry);
 	},
 
 	_getChannelId: function (url) {
@@ -254,7 +260,7 @@ _.extend (module.exports.prototype, {
 
 			if (results.nextPageToken) {
 				params.pageToken = results.nextPageToken;
-				
+
 				promises.push (
 					fetchMore (endpoint, params)
 				);
