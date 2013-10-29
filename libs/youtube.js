@@ -69,6 +69,13 @@ _.extend (module.exports.prototype, {
 						return promise.reject (error);
 					}
 
+					if (result.errors) {
+						var error_code = result.errors.error.code,
+							error_message = result.errors.error.internalReason;
+
+						throw new Error ('Request return error ' + error_code + ': ' + error_message + ' for url ' + url);
+					}
+
 					return promise.fulfill (result);
 				});
 
@@ -204,7 +211,10 @@ _.extend (module.exports.prototype, {
 			endpoint = '/feeds/api/videos/' + entry.id + '/comments';
 
 		return self.listXML (endpoint, function (item) {
-			return self._parseComment (item);
+			return self._parseComment (item)
+				.then (function (comment) {
+					return self.entry (comment, 'youtube#comment');
+				});
 		});
 	},
 
@@ -213,7 +223,10 @@ _.extend (module.exports.prototype, {
 
 		return self.getXML (url)
 			.then (function (item) {
-				return self._parseComment (item.entry);
+				return self._parseComment (item.entry)
+					.then (function (comment) {
+						return self.entry (comment, 'youtube#comment');
+					});
 			});
 	},
 
@@ -237,11 +250,11 @@ _.extend (module.exports.prototype, {
 
 							item.channelId = channel.id;
 
-							return self.entry (item, 'youtube#comment');
+							return item;
 						});
 				}
 
-				return self.entry (item, 'youtube#comment');
+				return item;
 			});
 	},
 
@@ -383,37 +396,49 @@ _.extend (module.exports.prototype, {
 
 	reply: function (url, message, issue) {
 		var self = this,
-			tmp = url.match(/\/users\/([A-Za-z_0-9-]+)\/(\d+).html(\?thread=(\d+))?/),
-			params = {
-				'journal': tmp [1],
-				'ditemid': tmp [2],
-				'parenttalkid': parseInt (tmp [4] / 256) || null,
-				'replyto': tmp [4] || null,
-				'body': message
-			};
+			videoId, commentId, tmp;
 
-		return this.get ('addcomment', params)
-			.then(_.bind(function (result) {
-				if (result.message) {
-					throw new Error (result.message);
-				}
-				
-				if (result.status == 'OK') {
-					var entry = {
-						url: result.commentlink,
-						ancestor: url,
-						postername: this.settings.username,
-						subject: '',
-						body: message,
-						datepostunix: parseInt(Date.now() / 1000),
-						reply_count: 0,
-						issue: issue
-					};
-					
-					self.entry (entry, 'comment');
+		if (tmp = url.match (/\/feeds\/api\/videos\/(.+)\/comments\/(.+)/)) {
+			videoId = tmp [1];
+			commentId = tmp [2];
+		} else if (tmp = url.match (/\/watch\?v=(.+)/)) {
+			videoId = tmp [1];
+		}
+
+		var headers = {
+			'Authorization': 'OAuth ' + self.settings.accessToken,
+			'Content-Type': 'application/atom+xml',
+			'X-GData-Key': 'key=' + 'AIzaSyDJfU861K81NcmfNR8pevlrlcHHqs9xK38' //TODO: DEVELOPER_KEY need
+		};
+
+		var body = '<?xml version="1.0" encoding="UTF-8"?>' +
+					'<entry xmlns="http://www.w3.org/2005/Atom" xmlns:yt="http://gdata.youtube.com/schemas/2007">' +
+						(commentId ? '<link rel="http://gdata.youtube.com/schemas/2007#in-reply-to" type="application/atom+xml" href="https://gdata.youtube.com/feeds/api/videos/' + videoId + '/comments/' + commentId + '"/>' : '') +
+						'<content>This is a crazy video.</content>' +
+					'</entry>';
+
+		var url = self.settings.oldBase + '/feeds/api/videos/' + videoId + '/comments?alt=atom&v=2';
+
+		return self.request ({url: url, headers: headers, method: 'post'})
+			.then(function (result) {
+				console.log ('22222222222', result);
+
+				if(tmp = result.match (/<id>tag\:youtube\.com\,(?:\d+)\:video\:(?:.+)\:comment\:(.+)<\/id>/))
+				{
+					var commentId = tmp [1],
+						commentUrl = self.settings.oldBase + '/feeds/api/videos/' + videoId + '/comments/' + commentId;
+
+					return self.getXML (commentUrl)
+						.then (function (item) {
+							return self._parseComment (item.entry)
+								.then (function (comment) {
+									comment.issue = issue;
+									return self.entry (comment, 'youtube#comment');
+								});
+						});
 				} else {
 					throw new Error ('Message was not send');
 				}
-			}, this));
+			});
 	}
 });
