@@ -18,6 +18,7 @@ _.extend (module.exports.prototype, {
 		oldBase: 'http://gdata.youtube.com',
 		locale: 'ru_RU',
 		accessToken: null,
+		developerKey: null,
 		emit: null,
 		scrapeStart: null
 	},
@@ -432,8 +433,8 @@ _.extend (module.exports.prototype, {
 
 		var headers = {
 			'Authorization': 'OAuth ' + self.settings.accessToken,
-			'Content-Type': 'application/atom+xml',
-			'X-GData-Key': 'key=' + 'AIzaSyDJfU861K81NcmfNR8pevlrlcHHqs9xK38' //TODO: DEVELOPER_KEY need
+			'X-GData-Key': 'key=' + self.settings.developerKey,
+			'Content-Type': 'application/atom+xml'
 		};
 
 		var body = '<?xml version="1.0" encoding="UTF-8"?>' +
@@ -446,22 +447,30 @@ _.extend (module.exports.prototype, {
 
 		return self.request ({url: url, headers: headers, body: body, method: 'post'})
 			.then(function (result) {
-				if(tmp = result.match (/<id>tag\:youtube\.com\,(?:\d+)\:video\:(?:.+)\:comment\:(.+)<\/id>/))
-				{
-					var commentId = tmp [1],
+				if (tmp = result.match (/<id>tag\:youtube\.com\,(?:\d+)\:video\:(?:.+)\:comment\:(.+)<\/id>/)) {
+					var promise = Promises.promise(),
+						commentId = tmp [1],
 						commentUrl = self.settings.oldBase + '/feeds/api/videos/' + videoId + '/comments/' + commentId;
+					
+					// youtube needs some seconds for processing
+					setTimeout (function () {
+						return self.getXML (commentUrl)
+							.then (function (item) {
+								return self._parseComment (item.entry)
+									.then (function (entry) {
+										entry.issue = issue;
+										promise.fulfill (entry);
+									});
+							});
+					}, 3000);
 
-					return self.getXML (commentUrl)
-						.then (function (item) {
-							return self._parseComment (item.entry)
-								.then (function (comment) {
-									comment.issue = issue;
-									return self.entry (comment, 'youtube#comment');
-								});
-						});
+					return promise;
 				} else {
 					throw new Error ('Message was not send');
 				}
+			})
+			.then (function (entry) {
+				return self.entry (entry, 'youtube#comment');
 			});
 	}
 });

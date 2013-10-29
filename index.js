@@ -111,6 +111,7 @@ var parse = {
 function youtube (slave, task, preEmit) {
 	return new YouTube ({
 		accessToken: task._prefetch.token.access_token,
+		developerKey: task._prefetch.bridge.developer_key,
 		emit: function (entry) {
 			if (preEmit) {
 				entry = preEmit (entry);
@@ -126,6 +127,7 @@ function youtube (slave, task, preEmit) {
 function googleplus (slave, task, preEmit) {
 	return new GooglePlus ({
 		accessToken: task._prefetch.token.access_token,
+		developerKey: task._prefetch.bridge.developer_key,
 		emit: function (entry) {
 			if (preEmit) {
 				entry = preEmit (entry);
