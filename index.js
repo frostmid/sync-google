@@ -92,22 +92,16 @@ var parse = {
 		};
 	},
 
-
-
-
 	'youtube#comment': function (entry) {
 		return {
-			'url': normalizeURL (entry.url),
+			'url': entry.id,
 			'entry-type': 'urn:fos:sync:entry-type/b0a3e0d02c0711e390a6ad90b2a1a278',
-			'ancestor': entry.ancestor || null,
-			'author': 'http://www.livejournal.com/users/' + entry.postername + '/profile',
-			'title': entry.subject || null,
-			'content': entry.body || null,
-			'created_at': entry.datepostunix,
-			'metrics': {
-				'comments': entry.reply_count || 0
-			},
-			'show-url': normalizeURL (entry.url, true)
+			'ancestor': 'https://www.youtube.com/watch?v=' + entry ['yt:videoid'],
+			'author': entry.googlePlusUserId ? 'https://plus.google.com/' + entry.googlePlusUserId : entry.channelId ? 'https://www.youtube.com/channel/' + entry.channelId : null,
+			'title': entry.title._,
+			'content': entry.content._,
+			'created_at': (new Date (entry.published)).getTime () / 1000,
+			'show-url': 'https://www.youtube.com/all_comments?v=' + entry ['yt:videoid']
 		};
 	},
 

@@ -2,7 +2,8 @@ var	_ = require ('lodash'),
 	Promises = require ('vow'),
 	rateLimit = require ('fun-rate-limit'),
 	querystring = require ('querystring'),
-	request = rateLimit.promise (require ('fos-request'), 200);
+	request = rateLimit.promise (require ('fos-request'), 200),
+	xml2js = require('xml2js');
 
 
 module.exports = function YouTube (settings) {
@@ -13,6 +14,7 @@ module.exports = function YouTube (settings) {
 _.extend (module.exports.prototype, {
 	settings: {
 		base: 'https://www.googleapis.com/youtube/v3',
+		oldBase: 'http://gdata.youtube.com',
 		locale: 'ru_RU',
 		accessToken: null,
 		emit: null,
@@ -48,6 +50,30 @@ _.extend (module.exports.prototype, {
 		params.access_token = this.settings.accessToken;
 
 		return this.request (url, params);
+	},
+
+	getXML: function (endpoint, params) {
+		var url = ((endpoint.indexOf ('http') === -1) ? this.settings.oldBase : '') + endpoint;
+
+		return this.request (url, params)
+			.then (function (response) {
+				var promise = Promises.promise(),
+					xmlParser = new xml2js.Parser({
+						//ignoreAttrs: true,
+						normalize: true,
+						explicitArray: false
+					});
+
+				xmlParser.parseString (response, function (error, result) {
+					if (error) {
+						return promise.reject (error);
+					}
+
+					return promise.fulfill (result);
+				});
+
+				return promise;
+			})
 	},
 
 	getChannel: function (url, sendToEmit) {
@@ -88,7 +114,7 @@ _.extend (module.exports.prototype, {
 			objectId = tmp ? tmp [2] .replace(/\/(.+)/, '') : null;
 
 		if (type == 'channel') {
-			promise.fullfil (objectId);
+			promise.fulfill (objectId);
 		} else {
 			this.get ('/channels', {forUsername: objectId, part: 'id'})
 				.then(function (response) {
@@ -96,7 +122,7 @@ _.extend (module.exports.prototype, {
 						throw new Error ('Channel was not found');
 					}
 
-					promise.fullfil (response.items [0].id);
+					promise.fulfill (response.items [0].id);
 				});
 		}
 
@@ -174,7 +200,28 @@ _.extend (module.exports.prototype, {
 
 
 	getComments: function (entry) {
-		return null;
+		var self = this,
+			endpoint = '/feeds/api/videos/' + entry.id + '/comments';
+
+		return self.listXML (endpoint, function (item) {
+			return self.getXML (item.author.uri)
+				.then (function (author) {
+					item.googlePlusUserId = author.entry ['yt:googlePlusUserId'];
+
+					if (!item.googlePlusUserId) {
+						return self.get ('/channels', {part: 'contentDetails', forUsername: author.entry ['yt:username']})
+							.then (function (result) {
+								var channel = result.items [0];
+
+								item.channelId = channel.id;
+
+								return self.entry (item, 'youtube#comment');
+							});
+					}
+
+					return self.entry (item, 'youtube#comment');
+				});
+		});
 	},
 
 	searchVideos: function (url) {
@@ -187,10 +234,12 @@ _.extend (module.exports.prototype, {
 			objectId = tmp ? tmp [1] .replace (/\&(.+)/, '') : null;
 
 		return self.get ('/videos', {part: 'snippet', id: objectId})
-			.then (function (entry) {
+			.then (function (response) {
+				var entry = response.items [0];
+
 				return self.get ('/channels', {part: 'contentDetails', id: entry.snippet.channelId})
 					.then (function (channel) {
-						entry.author = channel.contentDetails.googlePlusUserId;
+						entry.author = channel.contentDetails ? channel.contentDetails.googlePlusUserId || null : null;
 
 						return Promises.all ([
 							self.entry (entry),
@@ -217,14 +266,53 @@ _.extend (module.exports.prototype, {
 			console.log('* emit', parsed.url);
 			
 			return Promises.when (parsed)
-				.then (this.settings.emit)
-				.fail (function (error) {
-					console.log ('Failed to emit entry', error, entry);
-				})
-				.done ();
+				.then (this.settings.emit);
+
 		} else {
 			console.log ('Skipping of unknown type', type);
 		}
+	},
+
+	listXML: function (endpoint, iterator) {
+		var scrapeStart = this.settings.scrapeStart;
+
+		var fetchMore = _.bind (function (url) {
+			return this.getXML (url)
+				.then (process);
+		}, this);
+
+		var process = function (result) {
+			var promises = [];
+
+			// if (result.error) {
+			// 	throw result.error;
+			// }
+
+			if (result.feed.entry) {
+				promises = _.map (
+					_.filter (result.feed.entry, function (entry) {
+						var created_time = entry.published ? ((new Date (entry.published)).getTime ()) : null;
+
+						return (created_time && scrapeStart && (created_time >= scrapeStart));
+					}),
+					iterator
+				);
+			}
+
+			// TODO: uncomment for production
+			// _.each (result.feed.link, function (entry) {
+			// 	if (entry.$.rel != 'next') return;
+				
+			// 	promises.push (
+			// 		fetchMore (entry.$.href)
+			// 	);
+			// });
+
+			return Promises.all (promises);
+		};
+
+		return this.getXML (endpoint, {'max-results': 10})
+			.then (process);
 	},
 	
 	list: function (endpoint, params, iterator) {
