@@ -166,8 +166,8 @@ function googleplus (slave, task, preEmit) {
 		return youtube (this, task).getPlaylistVideos (task.url);
 	})
 
-	.use ('urn:fos:sync:feature/2a8baec036d811e3b620d1a9472cd3f6', function searchVideos (task) {
-		return youtube (this, task).searchVideos (task.url);
+	.use ('urn:fos:sync:feature/2a8baec036d811e3b620d1a9472cd3f6', function search (task) {
+		return youtube (this, task).search (task.url);
 	})
 
 	.use ('urn:fos:sync:feature/b300d9102c0611e390a6ad90b2a1a278', function getVideo (task) {

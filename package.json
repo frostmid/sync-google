@@ -10,9 +10,7 @@
 	"main": "index.js",
 	"dependencies": {
 		"lodash": "0.10.x",
-		"q": "0.8.x",
 		"vow": "*",
-		"moment": "*",
 		"socket.io-client": "*",
 		"fun-rate-limit": "*",
 		"xml2js": "*",

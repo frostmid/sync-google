@@ -3,7 +3,8 @@ var	_ = require ('lodash'),
 	rateLimit = require ('fun-rate-limit'),
 	querystring = require ('querystring'),
 	request = rateLimit.promise (require ('fos-request'), 200),
-	xml2js = require('xml2js');
+	xml2js = require('xml2js'),
+	Url = require ('url');
 
 
 module.exports = function YouTube (settings) {
@@ -258,8 +259,36 @@ _.extend (module.exports.prototype, {
 			});
 	},
 
-	searchVideos: function (url) {
-		return null;
+	search: function (url) {
+		var self = this,
+			query = Url.parse (url, true).query,
+			params = {
+				part: 'snippet',
+				q: query.search_query || null
+			};
+
+		return self.list ('/search', params, function (entry) {
+
+			// channel 
+			// playlist
+			// video
+
+			// switch (entry.id.kind) {
+			// 	case 'youtube#channel': return self.getChannel ('/channel/');
+			// 	case 'youtube#playlist': return self.getPlaylistVideos ();
+			// 	case 'youtube#video': return self.getVideo ('/watch?v=' + entry.id.videoId);
+			// }
+
+			return self.get ('/channels', {part: 'contentDetails', id: entry.snippet.channelId})
+				.then (function (channel) {
+					entry.author = channel.contentDetails ? channel.contentDetails.googlePlusUserId || null : null;
+
+					return Promises.all ([
+						self.entry (entry),
+						self.getComments (entry)
+					]);
+				});
+		});
 	},
 
 	getVideo: function (url, forExplain) {
@@ -317,10 +346,6 @@ _.extend (module.exports.prototype, {
 
 		var process = function (result) {
 			var promises = [];
-
-			// if (result.error) {
-			// 	throw result.error;
-			// }
 
 			if (result.feed.entry) {
 				promises = _.map (
