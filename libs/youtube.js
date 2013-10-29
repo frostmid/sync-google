@@ -138,7 +138,7 @@ _.extend (module.exports.prototype, {
 		return promise;
 	},
 
-	_getPlaylistVideos: function (playlistId, authorId) {
+	getPlaylistVideos: function (playlistId, authorId) {
 		var self = this,
 			params = {
 				part: 'snippet',
@@ -163,7 +163,7 @@ _.extend (module.exports.prototype, {
 				var playlistId = channel.contentDetails.relatedPlaylists.uploads,
 					authorId = channel.contentDetails.googlePlusUserId;
 
-				return self._getPlaylistVideos (playlistId, authorId);
+				return self.getPlaylistVideos (playlistId, authorId);
 			});
 	},
 
@@ -175,7 +175,7 @@ _.extend (module.exports.prototype, {
 				var playlistId = channel.contentDetails.relatedPlaylists.likes,
 					authorId = channel.contentDetails.googlePlusUserId;
 
-				return self._getPlaylistVideos (playlistId, authorId);
+				return self.getPlaylistVideos (playlistId, authorId);
 			});
 	},
 
@@ -189,7 +189,7 @@ _.extend (module.exports.prototype, {
 				return self.list ('/playlists', params, function (playlist) {
 					var authorId = channel.contentDetails.googlePlusUserId;
 
-					return self._getPlaylistVideos (playlist.id, authorId);
+					return self.getPlaylistVideos (playlist.id, authorId);
 				});
 			});
 	},
@@ -203,7 +203,7 @@ _.extend (module.exports.prototype, {
 			.then (function (channel) {
 				var authorId = channel.contentDetails.googlePlusUserId;
 
-				return self._getPlaylistVideos (playlistId, authorId);
+				return self.getPlaylistVideos (playlistId, authorId);
 			});
 	},
 
@@ -258,38 +258,6 @@ _.extend (module.exports.prototype, {
 
 				return item;
 			});
-	},
-
-	search: function (url) {
-		var self = this,
-			query = Url.parse (url, true).query,
-			params = {
-				part: 'snippet',
-				q: query.search_query || null
-			};
-
-		return self.list ('/search', params, function (entry) {
-
-			// channel 
-			// playlist
-			// video
-
-			// switch (entry.id.kind) {
-			// 	case 'youtube#channel': return self.getChannel ('/channel/');
-			// 	case 'youtube#playlist': return self.getPlaylistVideos ();
-			// 	case 'youtube#video': return self.getVideo ('/watch?v=' + entry.id.videoId);
-			// }
-
-			return self.get ('/channels', {part: 'contentDetails', id: entry.snippet.channelId})
-				.then (function (channel) {
-					entry.author = channel.contentDetails ? channel.contentDetails.googlePlusUserId || null : null;
-
-					return Promises.all ([
-						self.entry (entry),
-						self.getComments (entry)
-					]);
-				});
-		});
 	},
 
 	getVideo: function (url, forExplain) {
@@ -472,5 +440,30 @@ _.extend (module.exports.prototype, {
 			.then (function (entry) {
 				return self.entry (entry, 'youtube#comment');
 			});
+	},
+
+	search: function (url) {
+		var self = this,
+			query = Url.parse (url, true).query,
+			params = {
+				part: 'snippet',
+				q: query.search_query || null
+			};
+
+		return self.list ('/search', params, function (entry) {
+			if (entry.id.kind == 'youtube#channel') {
+				return self.getChannel ('/channel/' + entry.id.channelId);
+			} else if (entry.id.kind == 'youtube#video') {
+				return self.getVideo ('/watch?v=' + entry.id.videoId);
+			} else if (entry.id.kind == 'youtube#playlist') {
+				return self.getChannel ('/channel/' + entry.id.channelId, true)
+					.then (function (channel) {
+						var authorId = channel.contentDetails.googlePlusUserId;
+						return self.getPlaylistVideos (entry.id.playlistId, authorId);
+					});
+			} else {
+				throw new Error ('Entry type is unknown ' + entry.id.kind);
+			}
+		});
 	}
 });
