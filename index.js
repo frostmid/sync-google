@@ -85,7 +85,7 @@ var parse = {
 			'url': 'https://www.youtube.com/watch?v=' + entry.id,
 			'entry-type': 'urn:fos:sync:entry-type/4db0ea402c0711e390a6ad90b2a1a278',
 			'ancestor': 'https://www.youtube.com/channel/' + entry.snippet.channelId,
-			'author': entry.author ? 'https://plus.google.com/' + entry.author : null,
+			'author': entry.author ? 'https://plus.google.com/' + entry.author : (entry.snippet.channelId ? 'https://www.youtube.com/channel/' + entry.snippet.channelId : null),
 			'title': entry.snippet.title || null,
 			'content': entry.snippet.description || null,
 			'created_at': (new Date (entry.snippet.publishedAt)).getTime () / 1000
@@ -96,8 +96,8 @@ var parse = {
 		return {
 			'url': entry.id,
 			'entry-type': 'urn:fos:sync:entry-type/b0a3e0d02c0711e390a6ad90b2a1a278',
-			'ancestor': 'https://www.youtube.com/watch?v=' + entry ['yt:videoid'],
-			'author': entry.googlePlusUserId ? 'https://plus.google.com/' + entry.googlePlusUserId : entry.channelId ? 'https://www.youtube.com/channel/' + entry.channelId : null,
+			'ancestor': entry.ancestor ? entry.ancestor : 'https://www.youtube.com/watch?v=' + entry ['yt:videoid'],
+			'author': entry.googlePlusUserId ? 'https://plus.google.com/' + entry.googlePlusUserId : (entry.channelId ? 'https://www.youtube.com/channel/' + entry.channelId : null),
 			'title': entry.title._,
 			'content': entry.content._,
 			'created_at': (new Date (entry.published)).getTime () / 1000,
@@ -198,6 +198,10 @@ function googleplus (slave, task, preEmit) {
 			return googleplus (this, task).getProfile (task.url);
 		} else if (task.url.match (/www\.youtube\.com\/(channel|user)\/(.+)/)) {	//getChannel
 			return youtube (this, task).getChannel (task.url, true);
+		} else if (task.url.match (/\/watch\?v=(.+)/)) {
+			return youtube (this, task).getVideo (task.url, true);
+		} else if (task.url.match (/\/feeds\/api\/videos\/(.+)\/comments\//)) {
+			return youtube (this, task).getComment (task.url);
 		} else {
 			throw new Error ('Explain not implement for ' + task.url);
 		}

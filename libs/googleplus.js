@@ -54,7 +54,9 @@ _.extend (module.exports.prototype, {
 			params = {};
 
 		return this.get ('/people/' + userId, params)
-			.then (self.entry);
+			.then (function (entry) {
+				return self.entry (entry);
+			});
 	},
 
 	entry: function (entry, type) {
@@ -73,11 +75,7 @@ _.extend (module.exports.prototype, {
 			console.log('* emit', parsed.url);
 			
 			return Promises.when (parsed)
-				.then (this.settings.emit)
-				.fail (function (error) {
-					console.log ('Failed to emit entry', error, entry);
-				})
-				.done ();
+				.then (this.settings.emit);
 		} else {
 			console.log ('Skipping of unknown type', type);
 		}

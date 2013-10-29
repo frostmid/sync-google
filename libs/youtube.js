@@ -76,7 +76,7 @@ _.extend (module.exports.prototype, {
 			})
 	},
 
-	getChannel: function (url, sendToEmit) {
+	getChannel: function (url, forExplain) {
 		var self = this,
 			tmp = url.match(/\/(channel|user)\/(.+)/),
 			type = tmp ? tmp [1] : null,
@@ -99,7 +99,7 @@ _.extend (module.exports.prototype, {
 
 				var entry = response.items [0];
 
-				if (sendToEmit) {
+				if (forExplain) {
 					return self.entry (entry);
 				}
 
@@ -204,31 +204,52 @@ _.extend (module.exports.prototype, {
 			endpoint = '/feeds/api/videos/' + entry.id + '/comments';
 
 		return self.listXML (endpoint, function (item) {
-			return self.getXML (item.author.uri)
-				.then (function (author) {
-					item.googlePlusUserId = author.entry ['yt:googlePlusUserId'];
-
-					if (!item.googlePlusUserId) {
-						return self.get ('/channels', {part: 'contentDetails', forUsername: author.entry ['yt:username']})
-							.then (function (result) {
-								var channel = result.items [0];
-
-								item.channelId = channel.id;
-
-								return self.entry (item, 'youtube#comment');
-							});
-					}
-
-					return self.entry (item, 'youtube#comment');
-				});
+			return self._parseComment (item);
 		});
+	},
+
+	getComment: function (url) {
+		var self = this;
+
+		return self.getXML (url)
+			.then (function (item) {
+				return self._parseComment (item.entry);
+			});
+	},
+
+	_parseComment: function (item) {
+		var self = this;
+
+		return self.getXML (item.author.uri)
+			.then (function (author) {
+				item.googlePlusUserId = author.entry ['yt:googlePlusUserId'];
+
+				_.each (item.link, function (link) {
+					if (link.$.rel != 'http://gdata.youtube.com/schemas/2007#in-reply-to') return;
+					
+					item.ancestor = link.$.href;
+				});
+
+				if (!item.googlePlusUserId) {
+					return self.get ('/channels', {part: 'contentDetails', forUsername: author.entry ['yt:username']})
+						.then (function (result) {
+							var channel = result.items [0];
+
+							item.channelId = channel.id;
+
+							return self.entry (item, 'youtube#comment');
+						});
+				}
+
+				return self.entry (item, 'youtube#comment');
+			});
 	},
 
 	searchVideos: function (url) {
 		return null;
 	},
 
-	getVideo: function (url) {
+	getVideo: function (url, forExplain) {
 		var self = this,
 			tmp = url.match (/\?v=(.+)/),
 			objectId = tmp ? tmp [1] .replace (/\&(.+)/, '') : null;
@@ -243,7 +264,7 @@ _.extend (module.exports.prototype, {
 
 						return Promises.all ([
 							self.entry (entry),
-							self.getComments (entry)
+							(forExplain ? null : self.getComments (entry))
 						]);
 					});
 			});
@@ -299,19 +320,18 @@ _.extend (module.exports.prototype, {
 				);
 			}
 
-			// TODO: uncomment for production
-			// _.each (result.feed.link, function (entry) {
-			// 	if (entry.$.rel != 'next') return;
+			_.each (result.feed.link, function (entry) {
+				if (entry.$.rel != 'next') return;
 				
-			// 	promises.push (
-			// 		fetchMore (entry.$.href)
-			// 	);
-			// });
+				promises.push (
+					fetchMore (entry.$.href)
+				);
+			});
 
 			return Promises.all (promises);
 		};
 
-		return this.getXML (endpoint, {'max-results': 10})
+		return this.getXML (endpoint, {'max-results': 50})
 			.then (process);
 	},
 	
@@ -360,13 +380,6 @@ _.extend (module.exports.prototype, {
 		return self.request (self.settings.base + endpoint, params)
 			.then (process);
 	},
-
-
-
-
-
-
-
 
 	reply: function (url, message, issue) {
 		var self = this,
