@@ -85,7 +85,7 @@ _.extend (module.exports.prototype, {
 			})
 	},
 
-	getChannel: function (url, forExplain) {
+	getChannel: function (url, onlyObject) {
 		var self = this,
 			tmp = url.match(/\/(channel|user)\/(.+)/),
 			type = tmp ? tmp [1] : null,
@@ -108,7 +108,7 @@ _.extend (module.exports.prototype, {
 
 				var entry = response.items [0];
 
-				if (forExplain) {
+				if (onlyObject) {
 					return entry;
 				} else {
 					return self.entry (entry);
@@ -223,18 +223,6 @@ _.extend (module.exports.prototype, {
 		});
 	},
 
-	getComment: function (url) {
-		var self = this;
-
-		return self.getXML (url)
-			.then (function (item) {
-				return self._parseComment (item.entry)
-					.then (function (comment) {
-						return self.entry (comment, 'youtube#comment');
-					});
-			});
-	},
-
 	_parseComment: function (item) {
 		var self = this;
 
@@ -263,7 +251,7 @@ _.extend (module.exports.prototype, {
 			});
 	},
 
-	getVideo: function (url, forExplain) {
+	getVideo: function (url, onlyObject) {
 		var self = this,
 			tmp = url.match (/\?v=(.+)/),
 			objectId = tmp ? tmp [1] .replace (/\&(.+)/, '') : null;
@@ -276,10 +264,14 @@ _.extend (module.exports.prototype, {
 					.then (function (channel) {
 						entry.author = channel.contentDetails ? channel.contentDetails.googlePlusUserId || null : null;
 
-						return Promises.all ([
-							self.entry (entry),
-							(forExplain ? null : self.getComments (entry))
-						]);
+						if (onlyObject) {
+							return entry;
+						} else {
+							return Promises.all ([
+								self.entry (entry),
+								self.getComments (entry)
+							]);
+						}
 					});
 			});
 	},
@@ -470,5 +462,36 @@ _.extend (module.exports.prototype, {
 				throw new Error ('Entry type is unknown ' + entry.id.kind);
 			}
 		});
+	},
+
+	// explain methods:
+	explainChannel: function (url) {
+		var self = this;
+
+		return self.getChannel (url, true)
+			.then (function (entry) {
+				return self.entry (entry);
+			});
+	},
+
+	explainVideo: function (url) {
+		var self = this;
+
+		return self.getVideo (url, true)
+			.then (function (entry) {
+				return self.entry (entry);
+			});
+	},
+
+	explainComment: function (url) {
+		var self = this;
+
+		return self.getXML (url)
+			.then (function (item) {
+				return self._parseComment (item.entry)
+					.then (function (comment) {
+						return self.entry (comment, 'youtube#comment');
+					});
+			});
 	}
 });

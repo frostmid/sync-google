@@ -142,7 +142,7 @@ function googleplus (slave, task, preEmit) {
 
 (new Slave ({
 	title: 'google api',
-	version: '0.1.2'
+	version: '0.1.3'
 }))
 
 	//Google+
@@ -199,11 +199,11 @@ function googleplus (slave, task, preEmit) {
 		if (task.url.match (/plus\.google\.com\/(\d+)/)) {	// getProfile
 			return googleplus (this, task).getProfile (task.url);
 		} else if (task.url.match (/www\.youtube\.com\/(channel|user)\/(.+)/)) {	//getChannel
-			return youtube (this, task).getChannel (task.url, true);
+			return youtube (this, task).explainChannel (task.url);
 		} else if (task.url.match (/\/watch\?v=(.+)/)) {
-			return youtube (this, task).getVideo (task.url, true);
+			return youtube (this, task).explainVideo (task.url);
 		} else if (task.url.match (/\/feeds\/api\/videos\/(.+)\/comments\//)) {
-			return youtube (this, task).getComment (task.url);
+			return youtube (this, task).explainComment (task.url);
 		} else {
 			throw new Error ('Explain not implement for ' + task.url);
 		}
