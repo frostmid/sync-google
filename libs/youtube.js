@@ -66,9 +66,13 @@ _.extend (module.exports.prototype, {
 						explicitArray: false
 					});
 
+				if (!response.match (/<?xml/)) {
+					throw new Error (response + '. Url: ' + url);
+				}
+
 				xmlParser.parseString (response, function (error, result) {
 					if (error) {
-						return promise.reject (error + '. Url: ' + url);
+						throw new Error ('Error XMLparsing after request url ' + url);
 					}
 
 					if (result.errors) {
