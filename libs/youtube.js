@@ -68,7 +68,7 @@ _.extend (module.exports.prototype, {
 
 				xmlParser.parseString (response, function (error, result) {
 					if (error) {
-						return promise.reject (error);
+						return promise.reject (error + '. Url: ' + url);
 					}
 
 					if (result.errors) {
@@ -109,10 +109,10 @@ _.extend (module.exports.prototype, {
 				var entry = response.items [0];
 
 				if (forExplain) {
+					return entry;
+				} else {
 					return self.entry (entry);
 				}
-
-				return entry;
 			})
 	},
 
@@ -146,7 +146,7 @@ _.extend (module.exports.prototype, {
 			};
 
 		return self.list ('/playlistItems', params, function (entry) {
-			entry.author = authorId;
+			entry.author = authorId || null;
 
 			return Promises.all ([
 				self.entry (entry),
@@ -155,10 +155,23 @@ _.extend (module.exports.prototype, {
 		});
 	},
 
+	getPlaylistVideosByURL: function (url) {
+		var self = this,
+			tmp = url.match (/(?:\?|\&)list=(.+)/),
+			playlistId = tmp ? tmp [1] .replace (/\&(.+)/, '') : null;
+
+		return self.getChannel (url, true)
+			.then (function (channel) {
+				var authorId = channel.contentDetails.googlePlusUserId;
+
+				return self.getPlaylistVideos (playlistId, authorId);
+			});
+	},
+
 	getUploadedVideos: function (url) {
 		var self = this;
 
-		return self.getChannel (url)
+		return self.getChannel (url, true)
 			.then (function (channel) {
 				var playlistId = channel.contentDetails.relatedPlaylists.uploads,
 					authorId = channel.contentDetails.googlePlusUserId;
@@ -170,7 +183,7 @@ _.extend (module.exports.prototype, {
 	getLikedVideos: function (url) {
 		var self = this;
 
-		return self.getChannel (url)
+		return self.getChannel (url, true)
 			.then (function (channel) {
 				var playlistId = channel.contentDetails.relatedPlaylists.likes,
 					authorId = channel.contentDetails.googlePlusUserId;
@@ -182,7 +195,7 @@ _.extend (module.exports.prototype, {
 	getPlaylistedVideos: function (url) {
 		var self = this;
 
-		return self.getChannel (url)
+		return self.getChannel (url, true)
 			.then (function (channel) {
 				var params = {part: 'snippet', channelId: channel.id};
 
@@ -194,25 +207,15 @@ _.extend (module.exports.prototype, {
 			});
 	},
 
-	getPlaylistVideos: function (url) {
-		var self = this,
-			tmp = url.match (/(?:\?|\&)list=(.+)/),
-			playlistId = tmp ? tmp [1] .replace (/\&(.+)/, '') : null;
-
-		return self.getChannel (url)
-			.then (function (channel) {
-				var authorId = channel.contentDetails.googlePlusUserId;
-
-				return self.getPlaylistVideos (playlistId, authorId);
-			});
-	},
-
-
 	getComments: function (entry) {
 		var self = this,
-			endpoint = '/feeds/api/videos/' + entry.id + '/comments';
+			objectId = entry.id;
 
-		return self.listXML (endpoint, function (item) {
+		if (entry.kind == 'youtube#playlistItem') {
+			objectId = entry.snippet.resourceId.videoId;
+		}
+
+		return self.listXML ('/feeds/api/videos/' + objectId + '/comments', function (item) {
 			return self._parseComment (item)
 				.then (function (comment) {
 					return self.entry (comment, 'youtube#comment');
@@ -295,7 +298,7 @@ _.extend (module.exports.prototype, {
 				throw e;
 			}
 
-			console.log('* emit', parsed.url);
+			console.log ('* emit', parsed.url);
 			
 			return Promises.when (parsed)
 				.then (this.settings.emit);
@@ -317,8 +320,10 @@ _.extend (module.exports.prototype, {
 			var promises = [];
 
 			if (result.feed.entry) {
+				var itemsList = (typeof result.feed.entry == 'object') ? result.feed.entry : [result.feed.entry];
+
 				promises = _.map (
-					_.filter (result.feed.entry, function (entry) {
+					_.filter (itemsList, function (entry) {
 						var created_time = entry.published ? ((new Date (entry.published)).getTime ()) : null;
 
 						return (created_time && scrapeStart && (created_time >= scrapeStart));

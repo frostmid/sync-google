@@ -72,7 +72,7 @@ var parse = {
 			'url': url,
 			'entry-type': 'urn:fos:sync:entry-type/4db0ea402c0711e390a6ad90b2a1a278',
 			'ancestor': 'https://www.youtube.com/channel/' + entry.snippet.channelId,
-			'author': entry.author ? 'https://plus.google.com/' + entry.author : null,
+			'author': entry.author ? 'https://plus.google.com/' + entry.author : (entry.snippet.channelId ? 'https://www.youtube.com/channel/' + entry.snippet.channelId : null),
 			'title': entry.snippet.title || null,
 			'content': entry.snippet.description || null,
 			'created_at': (new Date (entry.snippet.publishedAt)).getTime () / 1000,
@@ -164,8 +164,8 @@ function googleplus (slave, task, preEmit) {
 		return youtube (this, task).getPlaylistedVideos (task.url);
 	})
 
-	.use ('urn:fos:sync:feature/0578fe0036db11e3b620d1a9472cd3f6', function getPlaylistVideos (task) {
-		return youtube (this, task).getPlaylistVideos (task.url);
+	.use ('urn:fos:sync:feature/0578fe0036db11e3b620d1a9472cd3f6', function getPlaylistVideosByURL (task) {
+		return youtube (this, task).getPlaylistVideosByURL (task.url);
 	})
 
 	.use ('urn:fos:sync:feature/2a8baec036d811e3b620d1a9472cd3f6', function search (task) {
