@@ -101,7 +101,7 @@ var parse = {
 			'title': entry.title._,
 			'content': entry.content._,
 			'created_at': (new Date (entry.published)).getTime () / 1000,
-			'show-url': 'https://www.youtube.com/all_comments?v=' + entry ['yt:videoid']
+			'show-url': 'https://www.youtube.com/comment?lc=' + entry.id.match (/\/comments\/(.+)/) [1] + '#comments-view'
 		};
 	},
 
@@ -142,7 +142,7 @@ function googleplus (slave, task, preEmit) {
 
 (new Slave ({
 	title: 'google api',
-	version: '0.1.1'
+	version: '0.1.2'
 }))
 
 	//Google+
