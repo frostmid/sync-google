@@ -103,7 +103,7 @@ _.extend (module.exports.prototype, {
 		return self.get ('/channels', params)
 			.then(function (response) {
 				if (!response.items || !response.items.length) {
-					throw new Error ('Channel was not found');
+					throw new Error ('Channel was not found. Url:' + url);
 				}
 
 				var entry = response.items [0];
@@ -128,7 +128,7 @@ _.extend (module.exports.prototype, {
 			this.get ('/channels', {forUsername: objectId, part: 'id'})
 				.then(function (response) {
 					if (!entry.items || !entry.items.length) {
-						throw new Error ('Channel was not found');
+						throw new Error ('Channel was not found for url ' + url);
 					}
 
 					promise.fulfill (response.items [0].id);
@@ -453,7 +453,7 @@ _.extend (module.exports.prototype, {
 			} else if (entry.id.kind == 'youtube#video') {
 				return self.getVideo ('/watch?v=' + entry.id.videoId);
 			} else if (entry.id.kind == 'youtube#playlist') {
-				return self.getChannel ('/channel/' + entry.id.channelId, true)
+				return self.getChannel ('/channel/' + entry.snippet.channelId, true)
 					.then (function (channel) {
 						var authorId = channel.contentDetails.googlePlusUserId;
 						return self.getPlaylistVideos (entry.id.playlistId, authorId);

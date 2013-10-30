@@ -142,7 +142,7 @@ function googleplus (slave, task, preEmit) {
 
 (new Slave ({
 	title: 'google api',
-	version: '0.1.3'
+	version: '0.1.4'
 }))
 
 	//Google+
