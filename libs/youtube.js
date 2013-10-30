@@ -103,7 +103,7 @@ _.extend (module.exports.prototype, {
 		return self.get ('/channels', params)
 			.then(function (response) {
 				if (!response.items || !response.items.length) {
-					throw new Error ('Channel was not found. Url:' + url);
+					throw new Error ('Channel was not found for url ' + url);
 				}
 
 				var entry = response.items [0];
